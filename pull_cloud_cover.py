@@ -74,6 +74,9 @@ response = requests.get(
 
 data = response.json()
 cloud_cover_list = data["properties"]["skyCover"]["values"]
+import pdb; pdb.set_trace()
+
+forecast_list = []
 
 for x in cloud_cover_list:
 
@@ -81,7 +84,27 @@ for x in cloud_cover_list:
     cloud_cover_value = x["value"]
 
     (start_time, end_time) = match_time_format(valid_time_str)
-    print(f"Start time: {start_time}, end_time: {end_time}")
+    # print(f"Start time: {start_time}, end_time: {end_time}")
+
+    # Have: Start time: 2025-12-05 12:00:00+00:00, end_time: 2025-12-05 15:00:00+00:00
+    # Want: list of datetimes at one hour increments between those
+
+    _forecast_list = []
+    i_time = start_time
+    while (i_time < end_time) :
+        i_time += timedelta(hours=1)
+        _forecast_list.append((i_time, cloud_cover_value))
+    
+    for f in _forecast_list:
+        forecast_list.append(f)
+
+for f in forecast_list:
+    print(f)
+
+
+# hours_from_now, predicted_cloud_cover
+
+# be able to run as a script and get the next however many hours
 
 
 # example of what I'm trying to get to
