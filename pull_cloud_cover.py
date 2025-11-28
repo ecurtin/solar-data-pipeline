@@ -1,6 +1,7 @@
 import json
 import re
 from datetime import datetime, timedelta, timezone
+import csv
 
 import requests
 from dateutil import parser
@@ -17,12 +18,13 @@ T_NOW_ROUNDED = datetime.now(timezone.utc).replace(minute=0, second=0, microseco
 def hours_from_now(td):
 
     seconds_per_hour = 60*60
+    hours_per_day = 24
 
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     diff = td - now
 
     # import pdb; pdb.set_trace()
-    return diff.seconds / seconds_per_hour
+    return (diff.seconds / seconds_per_hour) + (diff.days * hours_per_day)
 
 def match_time_format(unparsed_time_str):
     # returns a denormalized list of tuples for observation times and cloud cover values
@@ -100,42 +102,19 @@ for x in cloud_cover_list:
     i_time = start_time
     
     while (i_time < end_time and i_time >= T_NOW_ROUNDED) :
-        _denormalized_list.append((i_time, cloud_cover_value))
+
+        h = int(hours_from_now(i_time))
+        if(h < 24):
+            _denormalized_list.append((h, cloud_cover_value))
         i_time += timedelta(hours=1)
 
     for d in _denormalized_list:
         forecast_list.append(d)
 
-print("Okay, so now we've got denormalized entries that should be newer than NOW:")
-for f in forecast_list:
-    print(f)
+import pdb; pdb.set_trace()
 
+filename = T_NOW_ROUNDED.strftime("%Y-%m-%d_%H:%M:%S")
 
-# Have: Start time: 2025-12-05 12:00:00+00:00, end_time: 2025-12-05 15:00:00+00:00
-# Want: list of datetimes at one hour increments between those
-
-# while (i_time < end_time) :
-#     h = hours_from_now(i_time)
-#     _forecast_list.append((h, cloud_cover_value))
-#     i_time += timedelta(hours=1)
-
-#     if i_time > (zero_time + timedelta(hours=24)):
-#         break
-
-# for f in _forecast_list:
-#     forecast_list.append(f)
-
-# for f in forecast_list:
-#     print(f)
-
-
-# hours_from_now, predicted_cloud_cover
-
-# be able to run as a script and get the next however many hours
-
-
-# example of what I'm trying to get to
-# (
-#     ("forecast", as_of_time, valid_time ex: 12:00, value)
-#     ("forecast", as_of_time, valid_time ex: 1:00, value)
-# )
+with open(f"{filename}-forecast.csv","w+") as my_csv:
+    csvWriter = csv.writer(my_csv,delimiter=',')
+    csvWriter.writerows(forecast_list)
