@@ -23,7 +23,6 @@ def hours_from_now(td):
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     diff = td - now
 
-    # import pdb; pdb.set_trace()
     return (diff.seconds / seconds_per_hour) + (diff.days * hours_per_day)
 
 def match_time_format(unparsed_time_str):
@@ -111,10 +110,10 @@ for x in cloud_cover_list:
     for d in _denormalized_list:
         forecast_list.append(d)
 
-import pdb; pdb.set_trace()
+# filename = T_NOW_ROUNDED.strftime("%Y-%m-%d_%H:%M:%S")
 
-filename = T_NOW_ROUNDED.strftime("%Y-%m-%d_%H:%M:%S")
-
-with open(f"{filename}-forecast.csv","w+") as my_csv:
+with open(f"forecast.csv","w+") as my_csv:
     csvWriter = csv.writer(my_csv,delimiter=',')
+    csvWriter.writerow(["hours_from_now", "cloud_cover"])
+
     csvWriter.writerows(forecast_list)
