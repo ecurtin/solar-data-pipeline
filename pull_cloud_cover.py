@@ -1,6 +1,6 @@
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import requests
 from dateutil import parser
@@ -11,6 +11,18 @@ OFFICE = local_info["office"]
 GRID_X = local_info["grid-x"]
 GRID_Y = local_info["grid-y"]
 
+T_NOW_ROUNDED = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+
+
+def hours_from_now(td):
+
+    seconds_per_hour = 60*60
+
+    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    diff = td - now
+
+    # import pdb; pdb.set_trace()
+    return diff.seconds / seconds_per_hour
 
 def match_time_format(unparsed_time_str):
     # returns a denormalized list of tuples for observation times and cloud cover values
@@ -74,7 +86,6 @@ response = requests.get(
 
 data = response.json()
 cloud_cover_list = data["properties"]["skyCover"]["values"]
-import pdb; pdb.set_trace()
 
 forecast_list = []
 
@@ -84,22 +95,38 @@ for x in cloud_cover_list:
     cloud_cover_value = x["value"]
 
     (start_time, end_time) = match_time_format(valid_time_str)
-    # print(f"Start time: {start_time}, end_time: {end_time}")
 
-    # Have: Start time: 2025-12-05 12:00:00+00:00, end_time: 2025-12-05 15:00:00+00:00
-    # Want: list of datetimes at one hour increments between those
-
-    _forecast_list = []
+    _denormalized_list = []
     i_time = start_time
-    while (i_time < end_time) :
-        i_time += timedelta(hours=1)
-        _forecast_list.append((i_time, cloud_cover_value))
     
-    for f in _forecast_list:
-        forecast_list.append(f)
+    while (i_time < end_time and i_time >= T_NOW_ROUNDED) :
+        _denormalized_list.append((i_time, cloud_cover_value))
+        i_time += timedelta(hours=1)
 
+    for d in _denormalized_list:
+        forecast_list.append(d)
+
+print("Okay, so now we've got denormalized entries that should be newer than NOW:")
 for f in forecast_list:
     print(f)
+
+
+# Have: Start time: 2025-12-05 12:00:00+00:00, end_time: 2025-12-05 15:00:00+00:00
+# Want: list of datetimes at one hour increments between those
+
+# while (i_time < end_time) :
+#     h = hours_from_now(i_time)
+#     _forecast_list.append((h, cloud_cover_value))
+#     i_time += timedelta(hours=1)
+
+#     if i_time > (zero_time + timedelta(hours=24)):
+#         break
+
+# for f in _forecast_list:
+#     forecast_list.append(f)
+
+# for f in forecast_list:
+#     print(f)
 
 
 # hours_from_now, predicted_cloud_cover
