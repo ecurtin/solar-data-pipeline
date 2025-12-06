@@ -104,16 +104,23 @@ for x in cloud_cover_list:
 
         h = int(hours_from_now(i_time))
         if(h < 24):
-            _denormalized_list.append((h, cloud_cover_value))
+            _denormalized_list.append((i_time.year, i_time.month, i_time.day, i_time.hour, i_time.minute, cloud_cover_value))
         i_time += timedelta(hours=1)
 
     for d in _denormalized_list:
         forecast_list.append(d)
 
-# filename = T_NOW_ROUNDED.strftime("%Y-%m-%d_%H:%M:%S")
+schema = [
+    "year",
+    "month",
+    "day",
+    "hour_utc",
+    "minute_utc",
+    "cloud_cover"
+]
 
 with open(f"forecast.csv","w+") as my_csv:
     csvWriter = csv.writer(my_csv,delimiter=',')
-    csvWriter.writerow(["hours_from_now", "cloud_cover"])
+    csvWriter.writerow(schema)
 
     csvWriter.writerows(forecast_list)
