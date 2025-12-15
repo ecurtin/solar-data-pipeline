@@ -6,6 +6,11 @@ import csv
 import requests
 from dateutil import parser
 
+import pandas as pd
+import influxdb_client
+from influxdb_client.client.write_api import SYNCHRONOUS
+
+
 local_info = json.loads(open("grid-points.json").read())
 
 OFFICE = local_info["office"]
@@ -98,7 +103,7 @@ for x in cloud_cover_list:
     (start_time, end_time) = match_time_format(valid_time_str)
 
     _denormalized_list = []
-    i_time = start_time
+    i_time = max(start_time, T_NOW_ROUNDED)
     
     while (i_time < end_time and i_time >= T_NOW_ROUNDED) :
 
@@ -124,3 +129,30 @@ with open(f"forecast.csv","w+") as my_csv:
     csvWriter.writerow(schema)
 
     csvWriter.writerows(forecast_list)
+
+df = pd.read_csv("forecast.csv")
+
+def to_datetime(row):
+    return datetime(year=row["year"],
+                    month=row["month"],
+                    day=row["day"],
+                    hour=row["hour_utc"],
+                    minute=row["minute_utc"]
+                    )
+
+df["timestamp"] = df.apply(to_datetime, axis=1)
+
+df = df[["timestamp", "cloud_cover"]]
+df = df.set_index("timestamp")
+
+BUCKET = "weather"
+MEASUREMENT = "cloud_cover_forecast"
+URL="http://localhost:8086"
+
+client = influxdb_client.InfluxDBClient(url=URL)
+write_client = client.write_api(write_options=SYNCHRONOUS)
+
+
+
+write_client.write(BUCKET, "", record=df, data_frame_measurement_name=MEASUREMENT)
+

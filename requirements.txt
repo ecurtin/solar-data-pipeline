@@ -1,3 +1,4 @@
 suntimes
 pandas
 requests
+influxdb-client
