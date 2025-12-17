@@ -4,4 +4,4 @@
 
 cd /home/ryan/src/solar-data-pipeline/
 python3 pull_cloud_cover.py
-./battery_target_setter/battery_target_setter | mail -s "Solar forecast" ryan@ratml.org emily@framebit.org
+./battery_target_setter/battery_target_setter 2>&1 | mail -s "Solar forecast" ryan@ratml.org emily@framebit.org
