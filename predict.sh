@@ -3,5 +3,6 @@
 # Simple test script to test the pipeline each day in a cron job.
 
 cd /home/ryan/src/solar-data-pipeline/
+source venv/bin/activate
 python3 pull_cloud_cover.py
 ./battery_target_setter/battery_target_setter 2>&1 | mail -s "Solar forecast" ryan@ratml.org emily@framebit.org
