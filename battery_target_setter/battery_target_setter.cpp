@@ -1,10 +1,12 @@
 #include <mlpack.hpp>
 #include <iomanip>
 #include <mosquitto.h>
+#include <InfluxDBFactory.h>
 
 using namespace arma;
 using namespace mlpack;
 using namespace std;
+using namespace influxdb;
 
 void onConnect(struct mosquitto *mosq, void *obj, int reasonCode);
 void onPublish(struct mosquitto *mosq, void *obj, int mid);
@@ -20,6 +22,20 @@ int main()
     cerr << "Error initializing mosquitto!  Sorry." << endl;
     exit(1);
   }
+
+  std::unique_ptr<InfluxDB> influxdb = InfluxDBFactory::Get(
+      "http://localhost:8086?db=weather");
+  // TODO: pull forecast from influx
+  // TODO: retrain model?
+  //  - pull historical data
+  //  - pull generation data (kWh / hr)
+  //  - fit it with a regressor
+  //  - print R^2 score
+  //  - serialize the model ????? for debugging
+  //  - predict with the model
+  //  - do math to figure out where to set the battery given the predicted power
+  //    generation
+  //  - then reuse existing MQTT code
 
   mat forecast;
   data::TextOptions opts = data::CSV + data::HasHeaders;
