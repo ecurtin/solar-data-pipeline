@@ -1,9 +1,10 @@
 import openmeteo_requests
-
 import pandas as pd
 import requests_cache
 from retry_requests import retry
 from datetime import datetime, timedelta
+import influxdb_client
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 # Setup the Open-Meteo API client with cache and retry on error
 cache_session = requests_cache.CachedSession('.cache', expire_after = 3600)

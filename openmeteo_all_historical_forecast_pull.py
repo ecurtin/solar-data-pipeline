@@ -93,6 +93,4 @@ write_client = client.write_api(write_options=SYNCHRONOUS)
 write_client.write("weather",
                    "my-org",
                    record=hourly_dataframe,
-# TODO: I was working on these lines here, then we just need to actually pull
-# the data
                    data_frame_measurement_name="forecast_history")
