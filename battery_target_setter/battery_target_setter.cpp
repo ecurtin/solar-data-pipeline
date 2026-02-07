@@ -1,7 +1,7 @@
 #include <mlpack.hpp>
 #include <iomanip>
 #include <mosquitto.h>
-#include <InfluxDBFactory.h>
+#include <InfluxDB/InfluxDBFactory.h>
 
 using namespace arma;
 using namespace mlpack;
@@ -14,6 +14,33 @@ void onPublish(struct mosquitto *mosq, void *obj, int mid);
 static bool mqttConnected;
 static bool mqttPublished;
 
+fmat influxToArma(const std::vector<Point>& points)
+{
+  fmat m(points[0].getFieldSet().size(), points.size());
+
+  for (size_t i = 0; i < points.size(); ++i)
+  {
+    // Assumptions: fields will always be in the same order;
+    // all fields are ints, floats, or doubles.
+    for (size_t j = 0; j < points[i].getFieldSet().size(); ++j)
+    {
+      const Point::FieldValue& f = points[i].getFieldSet()[j].second;
+      if (f.index() == 0)
+        m(j, i) = (float) get<int>(f);
+      else if (f.index() == 1)
+        m(j, i) = (float) get<long long int>(f);
+      else if (f.index() == 3)
+        m(j, i) = (float) get<double>(f);
+      else if (f.index() == 5)
+        m(j, i) = (float) get<unsigned int>(f);
+      else if (f.index() == 6)
+        m(j, i) = (float) get<unsigned long long int>(f);
+    }
+  }
+
+  return m;
+}
+
 int main()
 {
   // Initialize libmosquitto for MQTT commands.
@@ -23,9 +50,35 @@ int main()
     exit(1);
   }
 
-  std::unique_ptr<InfluxDB> influxdb = InfluxDBFactory::Get(
+  unique_ptr<InfluxDB> influxdb = InfluxDBFactory::Get(
       "http://localhost:8086?db=weather");
-  // TODO: pull forecast from influx
+
+  // First get today's forecast; should be 24 points.
+  vector<Point> points = influxdb->query("SELECT * FROM daily_forecast");
+  if (points.size() != 24)
+  {
+    ostringstream oss;
+    oss << "Expected 24 rows in daily forecast; got " << points.size() << "!";
+    throw runtime_error(oss.str());
+  }
+  fmat dailyForecast = influxToArma(points);
+
+  // Now get all of our historical data.
+  points = influxdb->query("SELECT * FROM forecast_history");
+  if (points.size() == 0)
+  {
+    throw runtime_error("Received empty results from forecast_history "
+        "measurement!");
+  }
+  fmat forecastHistory = influxToArma(points);
+
+  cout << "Daily forecast size:   " << dailyForecast.n_rows << " x "
+      << dailyForecast.n_cols << "." << endl;
+  cout << "Forecast history size: " << forecastHistory.n_rows << " x "
+      << forecastHistory.n_cols << "." << endl;
+
+  exit(0);
+
   // TODO: retrain model?
   //  - pull historical data
   //  - pull generation data (kWh / hr)
