@@ -12,4 +12,5 @@ python3 openmeteo_historical_forecast_pull.py
 # the "weather.current_forecast" measurement will be dropped entirely
 # and replaced with 24 observations for today.
 python3 openmeteo_forecast_pull.py
+export LD_LIBRARY_PATH=/usr/local/lib
 ./battery_target_setter/battery_target_setter 2>&1 | mail -s "Solar forecast" ryan@ratml.org emily@framebit.org
