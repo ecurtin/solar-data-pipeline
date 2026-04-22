@@ -11,7 +11,7 @@ place = SunTimes(-84.40153, 33.78317, altitude=270)
 
 day = datetime.today()
 
-data_str = SunFiles(place, 2026, "ATL").get_csv()
+data_str = SunFiles(place, 2025, "ATL").get_csv()
 
 data_io = StringIO(data_str)
 
@@ -65,7 +65,7 @@ df = df.set_index("midnight-utc")
 
 
 
-# df.to_csv("suntimes.csv", index=False)
+df.to_csv("suntimes.csv", index=False)
 
 BUCKET = "weather"
 MEASUREMENT = "suntimes"

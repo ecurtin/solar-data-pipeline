@@ -1,5 +1,5 @@
 from astropy.coordinates import SkyCoord, AltAz, EarthLocation, get_sun
-from astropy.time import Time
+from astropy.time import Time, TimeDelta
 from astropy import units as u
 import pandas as pd
 import numpy as np
@@ -12,16 +12,17 @@ LONGITUDE = -84.40153
 def compute_sun_altaz(t, lat, lon):
   """
   Compute the altitude and azimuth of the sun at the given Earth coordinates and
-  the given time.
+  30 minutes from the given time.  For our modeling purposes, we want the sun's
+  coordinates halfway through the hour.
   """
-  s = get_sun(Time(t))
+  s = get_sun(Time(t) + TimeDelta(1800, format='sec'))
   e = EarthLocation(lat=(lat * u.deg), lon=(lon * u.deg))
   altaz = s.transform_to(AltAz(obstime=t, location=e))
   return (altaz.alt.degree, altaz.az.degree)
 
 
 df = pd.DataFrame({ 'time': pd.date_range(start='2025-08-01',
-                                          end='2050-01-01',
+                                          end='2050-05-01',
                                           freq='h',
                                           tz='America/New_York') })
 
