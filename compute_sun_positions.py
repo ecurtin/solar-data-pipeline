@@ -22,7 +22,7 @@ def compute_sun_altaz(t, lat, lon):
 
 
 df = pd.DataFrame({ 'time': pd.date_range(start='2025-08-01',
-                                          end='2050-05-01',
+                                          end='2030-05-01',
                                           freq='h',
                                           tz='America/New_York') })
 

@@ -36,6 +36,14 @@ int main()
   // Now get all of our historical forecast data.
   InfluxDataset<float> forecastHistory = InfluxToArma(influxdb,
       "SELECT * FROM forecast_history", "forecast history");
+  // For some reason, this query picks up a column called 'date'.
+  if (forecastHistory.colmap.count("date") > 0)
+  {
+    forecastHistory.data.shed_row(forecastHistory.colmap["date"]);
+    forecastHistory.names.erase(forecastHistory.names.begin() +
+        forecastHistory.colmap["date"]);
+    forecastHistory.colmap.erase("date");
+  }
 
   // Historical data is the sum of what was observed at the end of the hour, but
   // since we are taking it as a "forecast" for our training data, we need to
