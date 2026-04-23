@@ -45,10 +45,40 @@ int main()
     forecastHistory.colmap.erase("date");
   }
 
+  // When we do our feature engineering, we want to do it with the daily
+  // forecast and forecast history together.
+  if (dailyForecast.names.size() != forecastHistory.names.size())
+  {
+    ostringstream oss;
+    oss << "Daily forecast contains " << dailyForecast.names.size()
+        << " features, but forecast history contains "
+        << forecastHistory.names.size() << " features!";
+    throw runtime_error(oss.str());
+  }
+
+  if (dailyForecast.timestamps[0] - 3600 !=
+      forecastHistory.timestamps[forecastHistory.timestamps.n_elem - 1])
+  {
+    time_t t1 = forecastHistory.timestamps[
+        forecastHistory.timestamps.n_elem - 1];
+    time_t t2 = dailyForecast.timestamps[0];
+    ostringstream oss;
+    oss << "Last timestamp of forecast history is "
+        << put_time(localtime(&t1), "%c %Z") << ", but first timestamp of "
+        << "daily forecast is " << put_time(localtime(&t2), "%c %Z")
+        << "; they should be separated by 1 hour only!";
+    throw runtime_error(oss.str());
+  }
+
   // Historical data is the sum of what was observed at the end of the hour, but
   // since we are taking it as a "forecast" for our training data, we need to
   // shift the timestamp to refer to the start of the hour.
   forecastHistory.timestamps -= 3600;
+
+  forecastHistory.timestamps.insert_rows(forecastHistory.timestamps.n_rows,
+      dailyForecast.timestamps);
+  forecastHistory.data.insert_cols(forecastHistory.data.n_cols,
+      dailyForecast.data);
 
   // Lastly, get sun azimuth and altitude data.
   std::ostringstream altazQuery;
@@ -73,6 +103,11 @@ int main()
   InfluxDataset<float> generationHistory = InfluxToArma(influxdbSolar,
       "SELECT mean(combined) AS hourly_gen FROM \"PV power\" GROUP BY time(1h)",
       "generation history");
+  // Add zeros for the time we will predict.
+  generationHistory.timestamps.insert_rows(generationHistory.timestamps.n_rows,
+      dailyForecast.timestamps);
+  generationHistory.data.insert_cols(generationHistory.data.n_cols,
+      zeros<frowvec>(dailyForecast.timestamps.n_elem));
 
   // Find the time indices in generationHistoryTimes that match time indices in
   // forecastHistoryTimes.
@@ -136,6 +171,13 @@ int main()
   // generation at all, just so that it makes more sense to the reader.
   PrintDataset(predictors);
 
+  // Split off our test set.  Drop the first row too, since that's (zeroed)
+  // generation data.
+  fmat genTest = predictors.data.submat(1, predictors.data.n_cols - 25,
+      predictors.data.n_rows - 1, predictors.data.n_cols - 1);
+
+  // This will filter out the data in the test set (since the prediction values
+  // are set to zero).
   const uvec validIndices = find(predictors.data.row(0) > 0);
 
   predictors.data = predictors.data.cols(validIndices);
@@ -155,9 +197,11 @@ int main()
   mlpack::DecisionTreeRegressor genModel; // Step 1: create model.
   genModel.Train(predictors.data, gen); // Step 2: train model.
   frowvec predictions;
+  frowvec genTestPreds;
 
   // Now compute the RMSE on the training set.
   genModel.Predict(predictors.data, predictions);
+  genModel.Predict(genTest, genTestPreds);
 
   // Three different regimes: 0-500 Wh, 500-5000 Wh, and 5000+ Wh.
 
@@ -184,8 +228,8 @@ int main()
 
   // Next, we need to collect data to build a model on power usage.
   InfluxDataset<float> usageHistory = InfluxToArma(influxdbSolar,
-      "SELECT mean(combined) AS hourly_gen FROM \"PV power\" GROUP BY time(1h)",
-      "generation history");
+      "SELECT mean(inverter_0) AS hourly_usage FROM \"Load power essential\" GROUP BY time(1h)",
+      "usage history");
 
   // We can just use the same features as for generation forecasting; many of
   // them won't be anywhere near as useful.
@@ -215,7 +259,9 @@ int main()
   usageModel.Train(usageFeatures.data, usages);
 
   frowvec usagePreds;
+  frowvec usageTestPreds;
   usageModel.Predict(usageFeatures.data, usagePreds);
+  usageModel.Predict(dailyForecast.data, usageTestPreds);
 
   const double rmse500u = sqrt(accu((usages < 500.0) %
       pow(usagePreds - usages, 2)) / accu((usages < 500.0)));
@@ -235,6 +281,16 @@ int main()
 
   cout << "RMSE on the training set: "
       << sqrt(mean(pow(usagePreds - usages, 2))) << "." << std::endl;
+
+  // Now print predictions for the next 24 hours.
+  cout << endl << "Predictions for the next 24 hours:" << endl;
+  for (size_t i = 0; i < dailyForecast.timestamps.n_elem; ++i)
+  {
+    time_t t = dailyForecast.timestamps[i];
+    cout << put_time(localtime(&t), "%c %Z") << ": "
+        << genTestPreds[i] << " Wh generated, "
+        << usageTestPreds[i] << " Wh used." << endl;
+  }
 
   exit(0);
 
