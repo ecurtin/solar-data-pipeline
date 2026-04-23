@@ -160,6 +160,9 @@ int main()
   genModel.Predict(predictors.data, predictions);
 
   // Three different regimes: 0-500 Wh, 500-5000 Wh, and 5000+ Wh.
+
+  // TODO: really, we should compute these measures as part of k-fold
+  // cross-validation.
   const double rmse500 = sqrt(accu((gen < 500.0) %
       pow(predictions - gen, 2)) / accu((gen < 500.0)));
   const double rmse5k = sqrt(accu((gen >= 500.0 && gen < 5000.0) %
@@ -179,12 +182,59 @@ int main()
   cout << "RMSE on the training set: "
       << sqrt(mean(pow(predictions - gen, 2))) << "." << std::endl;
 
-  fmat results(4, gen.n_elem);
-  results.row(0) = gen;
-  results.row(1) = predictions;
-  results.row(2) = abs(gen - predictions);
-  results.row(3) = predictors.data.row(0); // cloud cover
-  data::Save("predictions-train.csv", results);
+  // Next, we need to collect data to build a model on power usage.
+  InfluxDataset<float> usageHistory = InfluxToArma(influxdbSolar,
+      "SELECT mean(combined) AS hourly_gen FROM \"PV power\" GROUP BY time(1h)",
+      "generation history");
+
+  // We can just use the same features as for generation forecasting; many of
+  // them won't be anywhere near as useful.
+  InfluxDataset<float> usageFeatures = InnerJoin(usageHistory, forecastHistory);
+
+  // Now construct the set of valid times we want to predict for; this is
+  // between 7am and 11pm every day.
+  uvec usageTimes = ones<uvec>(usageFeatures.timestamps.n_elem);
+  for (size_t i = 0; i < usageFeatures.timestamps.n_elem; ++i)
+  {
+    time_t t = usageFeatures.timestamps[i];
+    tm* l = localtime(&t);
+    if (l->tm_hour < 7 || l->tm_hour >= 23)
+      usageTimes[i] = 0;
+  }
+
+  // Now filter down only to times we care about.
+  const uvec usageIndices = find(usageTimes);
+  usageFeatures.timestamps = usageFeatures.timestamps.elem(usageIndices);
+  usageFeatures.data = usageFeatures.data.cols(usageIndices);
+
+  frowvec usages = usageFeatures.data.row(0);
+  usageFeatures.data.shed_row(0);
+
+  // Build the model.
+  DecisionTreeRegressor usageModel;
+  usageModel.Train(usageFeatures.data, usages);
+
+  frowvec usagePreds;
+  usageModel.Predict(usageFeatures.data, usagePreds);
+
+  const double rmse500u = sqrt(accu((usages < 500.0) %
+      pow(usagePreds - usages, 2)) / accu((usages < 500.0)));
+  const double rmse5ku = sqrt(accu((usages >= 500.0 && usages < 5000.0) %
+      pow(usagePreds - usages, 2)) / accu((usages >= 500.0 && usages < 5000.0)));
+  const double rmseMaxu = sqrt(accu((usages >= 5000.0) %
+      pow(usagePreds - usages, 2)) / accu((usages >= 5000.0)));
+  const size_t rmse500Countu = accu(gen < 500.0);
+  const size_t rmse5kCountu = accu(gen >= 500.0 && gen < 5000.0);
+  const size_t rmseMaxCountu = accu(gen >= 5000.0);
+  cout << "RMSE on the training set <  500 Wh:            " << rmse500u << "." << std::endl;
+  cout << "RMSE on the training set >= 500 Wh, < 5000 Wh: " << rmse5ku << "." << std::endl;
+  cout << "RMSE on the training set >= 5000 Wh:           " << rmseMaxu << "." << std::endl;
+  cout << "Training set points < 500 Wh: " << rmse500Countu << "." << endl;
+  cout << "Training set points >= 500 Wh, < 5000 Wh: " << rmse5kCountu << "." << endl;
+  cout << "Training set points >= 5000 Wh: " << rmseMaxCountu << "." << endl;
+
+  cout << "RMSE on the training set: "
+      << sqrt(mean(pow(usagePreds - usages, 2))) << "." << std::endl;
 
   exit(0);
 
