@@ -80,9 +80,12 @@ int main()
   forecastHistory.data.insert_cols(forecastHistory.data.n_cols,
       dailyForecast.data);
 
-  // Lastly, get sun azimuth and altitude data.
+  // Lastly, get sun azimuth and altitude data, but get it for 24 hours past the
+  // current time.  NOTE: on non-POSIX systems, the +3600 might not be valid.
+  // But I only intend to run this on POSIX-compliant systems.
+  time_t queryEnd = std::time(nullptr) + 86400;
   std::ostringstream altazQuery;
-  altazQuery << "SELECT * FROM sun_altaz WHERE time <= " << std::time(nullptr)
+  altazQuery << "SELECT * FROM sun_altaz WHERE time <= " << queryEnd
       << "000000000";
   InfluxDataset<float> sunAltaz = InfluxToArma(influxdb, altazQuery.str(),
       "sun alt/az");
@@ -175,6 +178,8 @@ int main()
   // generation data.
   fmat genTest = predictors.data.submat(1, predictors.data.n_cols - 25,
       predictors.data.n_rows - 1, predictors.data.n_cols - 1);
+  uvec genTestTimes = predictors.timestamps.subvec(
+      predictors.timestamps.n_elem - 25, predictors.timestamps.n_elem - 1);
 
   // This will filter out the data in the test set (since the prediction values
   // are set to zero).
@@ -284,9 +289,9 @@ int main()
 
   // Now print predictions for the next 24 hours.
   cout << endl << "Predictions for the next 24 hours:" << endl;
-  for (size_t i = 0; i < dailyForecast.timestamps.n_elem; ++i)
+  for (size_t i = 0; i < genTestTimes.n_elem; ++i)
   {
-    time_t t = dailyForecast.timestamps[i];
+    time_t t = genTestTimes[i];
     cout << put_time(localtime(&t), "%c %Z") << ": "
         << genTestPreds[i] << " Wh generated, "
         << usageTestPreds[i] << " Wh used." << endl;
