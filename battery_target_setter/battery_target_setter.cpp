@@ -296,15 +296,66 @@ int main()
         << genTestPreds[i] << " Wh generated, "
         << usageTestPreds[i] << " Wh used." << endl;
   }
+  cout << endl;
 
-  exit(0);
+  // We want to set the battery level to the minimum level such that we will not
+  // go below 20% during the day.  The "brute force" way to do this, assuming
+  // our predictions are right, is to simply compute what the net power surplus
+  // will be at any hour of the day between 7am and 11pm.
+  arma::vec surplus(genTestTimes.n_elem, arma::fill::zeros);
+  bool dayStart = false;
+  double maxCapacity = 28800 /* kW */ * 0.8 /* 20% minimum charge */;
+  for (size_t i = 0; i < genTestTimes.n_elem; ++i)
+  {
+    const time_t t = genTestTimes[i];
+    tm* tm = localtime(&t);
+    if (tm->tm_hour == 0)
+      dayStart = true;
+    if (!dayStart)
+      continue;
 
-  // TODO: we'll actually have a prediction for this soon enough.
+    if (tm->tm_hour >= 7 && tm->tm_hour < 23)
+    {
+      // These are the hours that Georgia Power charges more for, where we are
+      // interested in tracking the generation.
+      surplus[i] = (i > 0 ? surplus[i - 1] : 0.0) + genTestPreds[i] -
+          usageTestPreds[i];
+      if (surplus[i] >= maxCapacity)
+        surplus[i] = maxCapacity;
+    }
+  }
+  cout << surplus.t();
 
-  const double batteryTarget = 20.0;
+  const double minSurplus = surplus.min();
+  const double batteryTarget = (minSurplus > 0) ? 0.2 :
+      std::min(1.0, 0.2 + -minSurplus / 28800);
+  cout << "Battery level at 7am should be set to " << setprecision(2)
+      << (100.0 * batteryTarget) << "%." << endl;
+  cout << "Expected battery level for the next 24 hours:" << endl;
+  dayStart = false;
+  for (size_t i = 0; i < genTestTimes.n_elem; ++i)
+  {
+    const time_t t = genTestTimes[i];
+    tm* tm = localtime(&t);
+    cout << " - " << put_time(tm, "%c %Z") << ": ";
+    if (tm->tm_hour == 0)
+      dayStart = true;
 
-  cout << "Target battery percentage given this forecast: "
-      << batteryTarget << "\%." << endl;
+    if (tm->tm_hour < 5 || !dayStart)
+    {
+      cout << "at least 20.0%.";
+    }
+    else
+    {
+      const double pct = (100.0 * (surplus[i] / 28800 + batteryTarget));
+      if (pct <= 100.0)
+        cout << setprecision(2) << pct << "%.";
+      else
+        cout << "100.0%.";
+    }
+    cout << endl;
+  }
+  cout << endl;
 
   // Now set the actual target battery level for the inverter.  We need to make
   // potentially three setting changes:
