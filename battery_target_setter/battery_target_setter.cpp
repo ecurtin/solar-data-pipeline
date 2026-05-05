@@ -374,7 +374,7 @@ int main()
   // savings time happens on the inverter?  Does it handle that correctly even
   // without network?)
   ostringstream oss;
-  oss << size_t(batteryTarget);
+  oss << size_t(100.0 * batteryTarget);
 
   mosquitto* mosq = mosquitto_new("battery_target_setter", true, NULL);
   mosquitto_connect_callback_set(mosq, onConnect);
@@ -417,7 +417,7 @@ int main()
   cout << "Sent message to 'capacity_point_2'." << endl;
 
   oss = ostringstream();
-  oss << size_t(std::min(batteryTarget + 1, 100.0));
+  oss << size_t(std::min(100.0 * batteryTarget + 1, 100.0));
   mqttPublished = false;
   err = mosquitto_publish(mosq, NULL,
       "solar_assistant/inverter_1/stop_battery_discharge_capacity/set",
