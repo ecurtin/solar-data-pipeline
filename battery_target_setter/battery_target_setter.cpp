@@ -327,10 +327,21 @@ int main()
   cout << surplus.t();
 
   const double minSurplus = surplus.min();
-  const double batteryTarget = (minSurplus > 0) ? 0.2 :
+  const double maxSurplus = surplus.max();
+  const double minBasedBatteryTarget = (minSurplus > 0) ? 0.2 :
       std::min(1.0, 0.2 + -minSurplus / 28800);
+  // If the maximum expected battery level during the day is less than 90%,
+  // boost up what we are starting at.
+  const double batteryTarget = (maxSurplus < (0.9 * 28800)) ?
+      ((0.9 * 28800 - maxSurplus) / 28800) : minBasedBatteryTarget;
   cout << "Battery level at 7am should be set to " << setprecision(2)
       << (100.0 * batteryTarget) << "%." << endl;
+  if (batteryTarget != minBasedBatteryTarget)
+  {
+    cout << "(Battery level adjusted to keep maximum level at least 90%.)"
+        << endl;
+  }
+
   cout << "Expected battery level for the next 24 hours:" << endl;
   dayStart = false;
   for (size_t i = 0; i < genTestTimes.n_elem; ++i)
